@@ -17,6 +17,15 @@ def deps do
 end
 ```
 
+## Requirements
+
+To use this library you need to be able to compile a C software that makes use
+of `libxslt` library, so:
+
+- GCC or similar
+- Make
+- libxslt (including headers and source)
+
 ## Usage
 
 To use it, just call:
