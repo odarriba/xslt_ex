@@ -1,110 +1,18 @@
 #include "xslt_ex.h"
 
-/* This MUST be a power of two! */
-#define HASHSIZE 1024
-#if (!((HASHSIZE != 0) && !(HASHSIZE & (HASHSIZE - 1))))
-#error
-#endif
-
-typedef struct
-{
-  unsigned char *filename;
-  xsltStylesheetPtr stylesheet;
-} StylesheetCacheItem;
-
-typedef StylesheetCacheItem **StylesheetCache;
-
-typedef struct
-{
-  ErlNifMutex *mutex;
-  StylesheetCache cache;
-} PrivData;
-
-static unsigned int hash(const unsigned char *filename)
-{
-  unsigned int hashval;
-
-  for (hashval = 0; *filename != '\0'; filename++)
-    hashval = (*filename + 31 * hashval) & (HASHSIZE - 1);
-  return hashval;
-}
-
-static xsltStylesheetPtr get(ErlNifEnv *env, const unsigned char *filename)
-{
-  StylesheetCache cache = ((PrivData *)enif_priv_data(env))->cache;
-  StylesheetCacheItem *np = cache[hash(filename)];
-
-  if (np && strcmp((char *)filename, (char *)np->filename) == 0)
-  {
-    return np->stylesheet;
-  }
-  else
-  {
-    return NULL;
-  }
-}
-
-static int put(ErlNifEnv *env, unsigned char *filename, xsltStylesheetPtr stylesheet)
-{
-  PrivData *priv_data = (PrivData *)enif_priv_data(env);
-  ErlNifMutex *mutex = priv_data->mutex;
-  StylesheetCache cache = priv_data->cache;
-  StylesheetCacheItem *np;
-  xsltStylesheetPtr old_stylesheet;
-
-  unsigned int hashval = hash(filename);
-
-  enif_mutex_lock(mutex);
-
-  old_stylesheet = get(env, filename);
-
-  if (!old_stylesheet)
-  {
-    np = (StylesheetCacheItem *)enif_alloc(sizeof(StylesheetCacheItem));
-    if (!np)
-      return 0;
-    np->filename = filename;
-    np->stylesheet = stylesheet;
-    cache[hashval] = np;
-  }
-  else
-  {
-    enif_free(filename);
-    xsltFreeStylesheet(old_stylesheet);
-    cache[hashval]->stylesheet = stylesheet;
-  }
-
-  enif_mutex_unlock(mutex);
-
-  return 1;
-}
-
-static xsltStylesheetPtr getStylesheet(ErlNifEnv *env, unsigned char *filename)
-{
-  xsltStylesheetPtr stylesheet = get(env, filename);
-
-  if (!stylesheet)
-  {
-    stylesheet = xsltParseStylesheetFile(filename);
-    if (stylesheet)
-      put(env, filename, stylesheet);
-  }
-  else
-  {
-    enif_free(filename);
-  }
-
-  return stylesheet;
-}
-
 static unsigned char *binary_to_string(ErlNifBinary *bin)
 {
   unsigned char *str = (unsigned char *)enif_alloc(bin->size + 1);
 
   if (!str)
+  {
+    enif_free(str);
     return NULL;
+  }
+
   strncpy((char *)str, (char *)bin->data, bin->size);
   str[bin->size] = '\0';
+
   return str;
 }
 
@@ -126,16 +34,18 @@ static ERL_NIF_TERM transform(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[
 
   xslt_filename = binary_to_string(&arg0);
   input_xml_string = binary_to_string(&arg1);
+
   if (!xslt_filename || !input_xml_string)
     return enif_make_tuple2(
         env,
         enif_make_atom(env, "error"),
         enif_make_atom(env, "enomem"));
 
-  xslt = getStylesheet(env, xslt_filename);
+  xslt = xsltParseStylesheetFile(xslt_filename);
+  enif_free(xslt_filename);
+
   if (!xslt)
   {
-    enif_free(xslt_filename);
     enif_free(input_xml_string);
     return enif_make_tuple2(
         env,
@@ -144,20 +54,25 @@ static ERL_NIF_TERM transform(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[
   }
 
   input_xml = xmlParseDoc((const xmlChar *)input_xml_string);
+  enif_free(input_xml_string);
 
   if (!input_xml)
+  {
     return enif_make_tuple2(
         env,
         enif_make_atom(env, "error"),
         enif_make_atom(env, "invalid_xml"));
+  }
 
   xslt_result = xsltApplyStylesheet(xslt, input_xml, NULL);
 
   if (!xslt_result)
+  {
     return enif_make_tuple2(
         env,
         enif_make_atom(env, "error"),
         enif_make_atom(env, "xslt_error"));
+  }
 
   xsltSaveResultToString(&doc_txt_ptr, &doc_txt_len, xslt_result, xslt);
 
@@ -166,9 +81,9 @@ static ERL_NIF_TERM transform(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[
       doc_txt_ptr,
       doc_txt_len);
 
-  enif_free(input_xml_string);
   xmlFreeDoc(input_xml);
   xmlFreeDoc(xslt_result);
+  xsltFreeStylesheet(xslt);
   xmlFree(doc_txt_ptr);
 
   return enif_make_tuple2(
@@ -179,26 +94,12 @@ static ERL_NIF_TERM transform(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[
 
 static int load(ErlNifEnv *env, void **priv, ERL_NIF_TERM info)
 {
-  PrivData *priv_data = enif_alloc(sizeof(PrivData));
-  ErlNifMutex *mutex = enif_mutex_create("Elixir.XsltEx");
-  StylesheetCache cache =
-      enif_alloc(HASHSIZE * sizeof(StylesheetCacheItem *));
-
-  if (!priv_data || !mutex || !cache)
-    return 1;
-
-  bzero(cache, HASHSIZE * sizeof(StylesheetCacheItem *));
-
-  priv_data->mutex = mutex;
-  priv_data->cache = cache;
-
-  *priv = (void *)priv_data;
-
   if (xmlMemSetup(enif_free,
                   enif_alloc,
                   enif_realloc,
                   (xmlStrdupFunc)xmlStrdup) != 0)
     return 1;
+
   xmlInitParser();
   xmlSubstituteEntitiesDefault(1);
 
@@ -215,12 +116,13 @@ static void unload(ErlNifEnv *env, void *priv)
 {
   xsltCleanupGlobals();
   xmlCleanupParser();
-  enif_mutex_destroy(((PrivData *)priv)->mutex);
-  enif_free(((PrivData *)priv)->cache);
+
+  enif_free_env(env);
   enif_free(priv);
+
   return;
 }
 
-static ErlNifFunc funcs[] = {{"transform", 2, transform}};
+static ErlNifFunc funcs[] = {{"transform", 2, transform, 0}};
 
 ERL_NIF_INIT(Elixir.XsltEx, funcs, &load, NULL, &upgrade, &unload)
