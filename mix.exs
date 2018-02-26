@@ -22,8 +22,12 @@ defmodule XsltEx.MixProject do
       app: :xslt_ex,
       version: "0.1.0",
       elixir: "~> 1.4",
+      build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
+      description: description(),
+      package: package(),
       deps: deps(),
+      docs: docs(),
       compilers: [:xslt_ex] ++ Mix.compilers()
     ]
   end
@@ -40,6 +44,31 @@ defmodule XsltEx.MixProject do
     [
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"},
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      source_url: "https://github.com/odarriba/xslt_ex",
+      extras: ["README.md"]
+    ]
+  end
+
+  defp description do
+    """
+    Elixir library to do XSLT transformations on the fly using native libxslt.
+    """
+  end
+
+  defp package do
+    # These are the default files included in the package
+    [
+      name: :xslt_ex,
+      files: ["lib", "src", "Makefile", "mix.exs", "README*", "LICENSE*", "CODE_OF_CONDUCT*"],
+      maintainers: ["Óscar de Arriba"],
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/odarriba/xslt_ex"}
     ]
   end
 end
