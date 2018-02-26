@@ -5,8 +5,7 @@ defmodule Mix.Tasks.Compile.XsltEx do
       IO.warn("Windows is not supported.")
       exit(1)
     else
-      {result, _error_code} = System.cmd("make", ["priv/xslt_ex.so"], stderr_to_stdout: true)
-      IO.binwrite(result)
+      {_result, _error_code} = System.cmd("make", ["-s", "priv/xslt_ex.so"], stderr_to_stdout: true)
     end
 
     :ok

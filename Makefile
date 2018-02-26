@@ -22,10 +22,10 @@ endif
 all: libxslt
 
 libxslt:
-	$(MIX) compile
+	@$(MIX) compile
 
 priv/xslt_ex.so: src/xslt_ex.c
-	$(CC) $(CFLAGS) -shared $(LDFLAGS) -o $@ src/xslt_ex.c
+	@$(CC) $(CFLAGS) -shared $(LDFLAGS) -o $@ src/xslt_ex.c
 
 clean:
-	$(MIX) clean
+	@$(MIX) clean
