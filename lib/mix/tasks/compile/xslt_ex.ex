@@ -8,8 +8,6 @@ defmodule Mix.Tasks.Compile.XsltEx do
       File.mkdir_p("priv")
       {result, _error_code} = System.cmd("make", ["priv/xslt_ex.so"], stderr_to_stdout: true)
       IO.binwrite(result)
-      {result, _error_code} = System.cmd("make", ["priv/xslt_ex.so"], stderr_to_stdout: true)
-      IO.binwrite(result)
     end
 
     :ok
