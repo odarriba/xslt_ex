@@ -9,12 +9,6 @@ CFLAGS += -I/usr/local/include -I/usr/include -L/usr/local/lib -L/usr/lib
 CFLAGS += -std=gnu99 -Wno-unused-function
 CFLAGS += `pkg-config --cflags libxslt` `pkg-config --libs libxslt`
 
-ifeq ($(wildcard deps/xslt_ex),)
-	HOEDOWN_PATH = ../xslt_ex
-else
-	HOEDOWN_PATH = deps/xslt_ex
-endif
-
 ifneq ($(OS),Windows_NT)
 	CFLAGS += -fPIC
 
@@ -35,4 +29,3 @@ priv/xslt_ex.so: src/xslt_ex.c
 
 clean:
 	$(MIX) clean
-	$(RM) priv/*

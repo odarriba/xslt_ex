@@ -5,7 +5,6 @@ defmodule Mix.Tasks.Compile.XsltEx do
       IO.warn("Windows is not supported.")
       exit(1)
     else
-      File.mkdir_p("priv")
       {result, _error_code} = System.cmd("make", ["priv/xslt_ex.so"], stderr_to_stdout: true)
       IO.binwrite(result)
     end

@@ -9,10 +9,7 @@ defmodule XsltEx do
 
   # loading the NIF
   def init do
-    path =
-      unquote(app)
-      |> :code.priv_dir()
-      |> :filename.join('xslt_ex')
+    path = :filename.join(:code.priv_dir(unquote(app)), 'xslt_ex')
 
     :ok = :erlang.load_nif(path, 0)
   end
