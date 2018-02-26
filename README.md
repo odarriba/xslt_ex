@@ -46,6 +46,7 @@ something goes wrong.
 
 1. Add variables.
 2. Investigate random segmentation faults.
+3. Tests
 
 ## Contribute
 
