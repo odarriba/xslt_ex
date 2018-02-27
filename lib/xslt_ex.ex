@@ -19,13 +19,13 @@ defmodule XsltEx do
 
   ## Examples
 
-      iex> XsltEx.transform("path/to/stylesheet.xslt", xml)
+      iex> XsltEx.transform("path/to/stylesheet.xslt", xml, [{"param1", "foo"}, {"param2", "bar"}])
       %{:ok, transformed_xml}
   """
-  @spec transform(xslt_path :: String.t(), xml_data :: String.t()) :: tuple()
-  def transform(xslt_path, xml_data)
+  @spec transform(xslt_path :: String.t(), xml_data :: String.t(), [tuple()]) :: tuple()
+  def transform(xslt_path, xml_data, params)
 
-  def transform(_, _) do
+  def transform(_, _, _) do
     # if the NIF can't be loaded, this function is called instead.
     exit(:nif_library_not_loaded)
   end

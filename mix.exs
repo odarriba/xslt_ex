@@ -1,12 +1,7 @@
 defmodule Mix.Tasks.Compile.XsltEx do
   def run(_) do
-    if match?({:win32, _}, :os.type()) do
-      # libpostal does not support Windows unfortunately.
-      IO.warn("Windows is not supported.")
-      exit(1)
-    else
-      {_result, _error_code} = System.cmd("make", ["-s", "priv/xslt_ex.so"], stderr_to_stdout: true)
-    end
+    {result, _error_code} = System.cmd("make", ["-s", "priv/xslt_ex.so"], stderr_to_stdout: true)
+    IO.puts(result)
 
     :ok
   end
@@ -18,7 +13,7 @@ defmodule XsltEx.MixProject do
   def project do
     [
       app: :xslt_ex,
-      version: "0.1.0",
+      version: "0.1.1",
       elixir: "~> 1.4",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,

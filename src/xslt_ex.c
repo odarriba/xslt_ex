@@ -1,6 +1,7 @@
 #include "xslt_ex.h"
 
-static unsigned char *binary_to_string(ErlNifBinary *bin)
+static unsigned char *
+binary_to_string(ErlNifBinary *bin)
 {
   unsigned char *str = (unsigned char *)enif_alloc(bin->size + 1);
 
@@ -16,10 +17,83 @@ static unsigned char *binary_to_string(ErlNifBinary *bin)
   return str;
 }
 
-static ERL_NIF_TERM transform(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+static char **
+parse_xslt_params(ErlNifEnv *env, ERL_NIF_TERM input_params)
+{
+  ERL_NIF_TERM xslt_params_left = input_params;
+  ERL_NIF_TERM xslt_param;
+  int xslt_param_position = 0;
+  unsigned int num_xslt_params;
+  char **result_params;
+
+  // Get ammount of params
+  enif_get_list_length(env, input_params, &num_xslt_params);
+
+  // Allocate space
+  result_params = (char **)enif_alloc(sizeof(char *) * (num_xslt_params * 2 + 1));
+
+  // Process each tuple of the parameters list
+  while (enif_get_list_cell(env, xslt_params_left, &xslt_param, &xslt_params_left))
+  {
+    const ERL_NIF_TERM *tuple;
+    ErlNifBinary key;
+    ErlNifBinary value;
+    const xmlChar *value_separator;
+    xmlChar *value_clear;
+    int num_elements;
+
+    // Get tuple and check that it's as expected
+    if (!enif_get_tuple(env, xslt_param, &num_elements, &tuple))
+      return NULL;
+
+    if (num_elements != 2 || !enif_inspect_binary(env, tuple[0], &key) || !enif_inspect_binary(env, tuple[1], &value))
+      return NULL;
+
+    // Extract binary key
+    char *key_str = (char *)enif_alloc(sizeof(char) * key.size);
+    strncpy((char *)key_str, (char *)key.data, key.size);
+    key_str[key.size] = '\0';
+
+    // Extract binary value
+    char *value_str = (char *)enif_alloc(sizeof(char) * value.size);
+    strncpy((char *)value_str, (char *)value.data, value.size);
+    value_str[value.size] = '\0';
+
+    // Encapsulate value as expected to be recognised
+    if (xmlStrchr((const xmlChar *)value_str, '"'))
+    {
+      if (xmlStrchr((const xmlChar *)value_str, '\''))
+      {
+        return NULL;
+      }
+      value_separator = (const xmlChar *)"'";
+    }
+    else
+    {
+      value_separator = (const xmlChar *)"\"";
+    }
+
+    value_clear = xmlStrdup(value_separator);
+    value_clear = xmlStrcat(value_clear, (const xmlChar *)value_str);
+    value_clear = xmlStrcat(value_clear, value_separator);
+
+    // ... and add it to the result
+    result_params[xslt_param_position++] = key_str;
+    result_params[xslt_param_position++] = (char *)value_clear;
+  }
+
+  result_params[xslt_param_position] = NULL;
+
+  return result_params;
+}
+
+static ERL_NIF_TERM
+transform(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
   ERL_NIF_TERM term;
   ErlNifBinary arg0, arg1;
+
+  const char **xslt_params;
 
   unsigned char *xslt_filename;
   xsltStylesheetPtr xslt;
@@ -29,9 +103,10 @@ static ERL_NIF_TERM transform(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[
   xmlChar *doc_txt_ptr;
   int doc_txt_len;
 
-  if (argc < 2 || !enif_inspect_binary(env, argv[0], &arg0) || !enif_inspect_binary(env, argv[1], &arg1))
+  if (argc < 2 || !enif_inspect_binary(env, argv[0], &arg0) || !enif_inspect_binary(env, argv[1], &arg1) || !enif_is_list(env, argv[2]))
     return enif_make_badarg(env);
 
+  // Parse XSLT filename and input data
   xslt_filename = binary_to_string(&arg0);
   input_xml_string = binary_to_string(&arg1);
 
@@ -40,6 +115,20 @@ static ERL_NIF_TERM transform(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[
         env,
         enif_make_atom(env, "error"),
         enif_make_atom(env, "enomem"));
+
+  // Parse params
+  xslt_params = (const char **)parse_xslt_params(env, argv[2]);
+
+  if (!xslt_params)
+  {
+    enif_free(xslt_filename);
+    enif_free(input_xml_string);
+
+    return enif_make_tuple2(
+        env,
+        enif_make_atom(env, "error"),
+        enif_make_atom(env, "param_not_valid"));
+  }
 
   xslt = xsltParseStylesheetFile(xslt_filename);
   enif_free(xslt_filename);
@@ -64,7 +153,7 @@ static ERL_NIF_TERM transform(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[
         enif_make_atom(env, "invalid_xml"));
   }
 
-  xslt_result = xsltApplyStylesheet(xslt, input_xml, NULL);
+  xslt_result = xsltApplyStylesheet(xslt, input_xml, xslt_params);
 
   if (!xslt_result)
   {
@@ -123,6 +212,6 @@ static void unload(ErlNifEnv *env, void *priv)
   return;
 }
 
-static ErlNifFunc funcs[] = {{"transform", 2, transform, 0}};
+static ErlNifFunc funcs[] = {{"transform", 3, transform, 0}};
 
 ERL_NIF_INIT(Elixir.XsltEx, funcs, &load, NULL, &upgrade, &unload)
