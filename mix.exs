@@ -3,6 +3,8 @@ defmodule Mix.Tasks.Compile.XsltEx do
     {result, _error_code} = System.cmd("make", ["-s", "priv/xslt_ex.so"], stderr_to_stdout: true)
     IO.puts(result)
 
+    Mix.Project.build_structure()
+
     :ok
   end
 end
