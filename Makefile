@@ -25,6 +25,7 @@ libxslt:
 	@$(MIX) compile
 
 priv/xslt_ex.so: src/xslt_ex.c
+	@mkdir -p priv/
 	@$(CC) $(CFLAGS) -shared $(LDFLAGS) -o $@ src/xslt_ex.c
 
 clean:
